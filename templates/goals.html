@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goal Planner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="app">
+        <nav class="top-nav glass">
+            <div class="brand">
+                <div class="brand-mark"></div>
+                <span>Envelope Goals</span>
+            </div>
+            <div class="nav-links">
+                <a href="/">Dashboard</a>
+                <a href="/goals">Goals</a>
+                <span>Insights</span>
+                <span>Settings</span>
+            </div>
+        </nav>
+
+        <header class="hero">
+            <h1>Goal Planner</h1>
+            <p>Use your paycheck details, priority, and time horizon to set a savings plan per payday.</p>
+        </header>
+
+        <section class="grid">
+            <div class="panel glass">
+                <h2>Paycheck Details</h2>
+                <form action="/save_profile" method="post" class="goal-form">
+                    <label for="netPay">Net saving per paycheck</label>
+                    <input type="number" id="netPay" name="netPay" step="0.01" required value="{{ profile.net_pay if profile else '' }}">
+
+                    <label for="frequency">Pay frequency</label>
+                    <select id="frequency" name="frequency" required>
+                        <option value="monthly" {% if profile and profile.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
+                        <option value="bi-weekly" {% if profile and profile.frequency == 'bi-weekly' %}selected{% endif %}>Bi-weekly</option>
+                        <option value="weekly" {% if profile and profile.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+                    </select>
+
+                    <label for="lastPayday">Last payday</label>
+                    <input type="date" id="lastPayday" name="lastPayday" required value="{{ profile.last_payday.strftime('%Y-%m-%d') if profile else '' }}">
+
+                    <button type="submit">Save Paycheck Settings</button>
+                </form>
+            </div>
+
+            <div class="panel glass">
+                <h2>Add a Goal</h2>
+                <form action="/add_savings_goal" method="post" class="goal-form">
+                    <label for="name">Goal name</label>
+                    <input type="text" id="name" name="name" required>
+
+                    <label for="targetAmount">Target amount</label>
+                    <input type="number" id="targetAmount" name="targetAmount" step="0.01" required>
+
+                    <label for="targetDate">Target date</label>
+                    <input type="date" id="targetDate" name="targetDate" required>
+
+                    <label for="priority">Priority (1 = highest)</label>
+                    <input type="number" id="priority" name="priority" min="1" value="1" required>
+
+                    <button type="submit">Add Goal</button>
+                </form>
+            </div>
+        </section>
+
+        <section class="panel glass">
+            <h2>Per-Paycheck Plan</h2>
+            {% if not profile %}
+                <p class="muted">Add paycheck details to generate recommendations.</p>
+            {% endif %}
+            <p class="muted">Drag rows to reprioritize goals (top = highest priority).</p>
+            <div class="stat-grid">
+                <div class="stat">
+                    <span>Available per paycheck</span>
+                    <strong>${{ '%.2f'|format(total_savings) }}</strong>
+                </div>
+                <div class="stat">
+                    <span>Required to hit all dates</span>
+                    <strong>${{ '%.2f'|format(total_required) }}</strong>
+                </div>
+                {% if gap is not none %}
+                    {% if gap >= 0 %}
+                        <div class="stat good">
+                            <span>Surplus</span>
+                            <strong>${{ '%.2f'|format(gap) }}</strong>
+                        </div>
+                    {% else %}
+                        <div class="stat warn">
+                            <span>Shortfall</span>
+                            <strong>${{ '%.2f'|format(gap | abs) }}</strong>
+                        </div>
+                    {% endif %}
+                {% endif %}
+            </div>
+
+            <div class="goal-table">
+                <div class="goal-row head">
+                    <span></span>
+                    <span>Goal</span>
+                    <span>Target</span>
+                    <span>Target date</span>
+                    <span>Priority</span>
+                    <span>Paydays left</span>
+                    <span>Required / paycheck</span>
+                    <span>Recommended / paycheck</span>
+                    <span>Actions</span>
+                </div>
+                <div class="goal-body">
+                    {% for allocation in allocations %}
+                        <div class="goal-row{% if not allocation.goal.is_active %} inactive{% endif %}" data-goal-id="{{ allocation.goal.id }}">
+                            <div class="drag-handle" aria-label="Drag to reorder">
+                                <span class="drag-icon" aria-hidden="true"></span>
+                            </div>
+                            <div class="goal-name">
+                                <strong>{{ allocation.goal.name }}</strong>
+                            </div>
+                            <span>${{ '%.2f'|format(allocation.goal.target_amount) }}</span>
+                            <span>{{ allocation.goal.target_date }}</span>
+                            <span data-role="priority">{{ allocation.goal.priority }}</span>
+                            <span>
+                                {% if allocation.remaining_paydays is not none %}
+                                    {{ allocation.remaining_paydays }}
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </span>
+                            <span>
+                                {% if allocation.required_per_paycheck is not none %}
+                                    ${{ '%.2f'|format(allocation.required_per_paycheck) }}
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </span>
+                            <span>${{ '%.2f'|format(allocation.recommended_per_paycheck) }}</span>
+                            <div class="goal-actions">
+                                <form action="/toggle_savings_goal/{{ allocation.goal.id }}" method="post" class="toggle-form">
+                                    <label class="toggle">
+                                        <input type="checkbox" name="isActive" value="1" {% if allocation.goal.is_active %}checked{% endif %} onchange="this.form.submit()">
+                                        <span class="toggle-slider" aria-hidden="true"></span>
+                                        <span class="sr-only">Enable goal</span>
+                                    </label>
+                                </form>
+                                <form action="/delete_savings_goal/{{ allocation.goal.id }}" method="post">
+                                    <button type="submit" class="ghost">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="panel glass">
+                <h2>Savings Breakdown</h2>
+                <div class="chart-wrap">
+                    <canvas id="goalChart"></canvas>
+                </div>
+                <p class="muted">Chart reflects the recommended per-paycheck distribution.</p>
+            </div>
+            <div class="panel glass">
+                <h2>How the weights work</h2>
+                <p class="muted">We combine the urgency of each goal (target amount divided by paydays remaining) with your priority order. Higher priority and fewer remaining paydays receive more weight.</p>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    <script>
+        const chartLabels = {{ chart_labels | tojson }};
+        const chartValues = {{ chart_values | tojson }};
+        const chartData = chartValues.map(value => Number(value));
+        const hasData = chartData.some(value => value > 0);
+
+        const ctx = document.getElementById('goalChart');
+        if (ctx && hasData) {
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        data: chartData,
+                        backgroundColor: [
+                            'rgba(94, 231, 255, 0.75)',
+                            'rgba(143, 122, 255, 0.75)',
+                            'rgba(64, 196, 140, 0.75)',
+                            'rgba(255, 184, 76, 0.75)',
+                            'rgba(255, 110, 110, 0.75)'
+                        ],
+                        borderColor: 'rgba(255, 255, 255, 0.2)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#e9edf7'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        const goalBody = document.querySelector('.goal-body');
+        if (goalBody && window.Sortable) {
+            const updatePriorities = () => {
+                Array.from(goalBody.querySelectorAll('.goal-row[data-goal-id]'))
+                    .forEach((row, index) => {
+                        const priorityCell = row.querySelector('[data-role="priority"]');
+                        if (priorityCell) {
+                            priorityCell.textContent = String(index + 1);
+                        }
+                    });
+            };
+
+            new Sortable(goalBody, {
+                animation: 150,
+                handle: '.drag-handle',
+                ghostClass: 'dragging',
+                onEnd: async () => {
+                    updatePriorities();
+                    const order = Array.from(goalBody.querySelectorAll('.goal-row[data-goal-id]'))
+                        .map(row => Number(row.dataset.goalId));
+                    try {
+                        const response = await fetch('/reorder_savings_goals', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ order })
+                        });
+                        if (response.ok) {
+                            window.location.reload();
+                        }
+                    } catch (error) {
+                        console.error('Failed to save order', error);
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

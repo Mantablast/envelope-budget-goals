@@ -4,30 +4,74 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Personal Budget App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-    <h1>Get Paid Baddie!</h1>
-    <form action="/add_goal" method="post">
-        <label for="date">Date:</label>
-        <input type="date" id="date" name="date" required>
-        <label for="amount">Goal Amount:</label>
-        <input type="number" id="amount" name="amount" step="0.01" required>
-        <label for="incomePerPayDay">Income Per Pay Day:</label>
-        <input type="number" id="incomePerPayDay" name="incomePerPayDay" step="0.01" required>
-        <button type="submit">Add Goal</button>
-    </form>
-    <h2>Current Goals</h2>
-    <ul>
-        {% for goal, remaining_pay_days in goals %}
-            <li>
-                {{ goal.date }}: ${{ '%.2f'|format(goal.amount) }} - Remaining Pay Days: {{ remaining_pay_days }} - Amount Per Pay Day: ${{ '%.2f'|format(goal.amount_per_pay_day()) }}
-                <form action="/delete_goal/{{ goal.id }}" method="post" style="display:inline;">
-                    <button type="submit">Delete</button>
+    <div class="app">
+        <nav class="top-nav glass">
+            <div class="brand">
+                <div class="brand-mark"></div>
+                <span>Envelope Goals</span>
+            </div>
+            <div class="nav-links">
+                <a href="/">Dashboard</a>
+                <a href="/goals">Goals</a>
+                <span>Insights</span>
+                <span>Settings</span>
+            </div>
+        </nav>
+
+        <header class="hero">
+            <h1>Get Paid Baddie!</h1>
+            <p>Track each goal with crystal-clear pay day pacing.</p>
+        </header>
+
+        <section class="grid">
+            <div class="panel glass">
+                <h2>Add a Goal</h2>
+                <form action="/add_goal" method="post" class="goal-form">
+                    <label for="date">Date</label>
+                    <input type="date" id="date" name="date" required>
+                    <label for="amount">Goal Amount</label>
+                    <input type="number" id="amount" name="amount" step="0.01" required>
+                    <label for="incomePerPayDay">Income Per Pay Day</label>
+                    <input type="number" id="incomePerPayDay" name="incomePerPayDay" step="0.01" required>
+                    <button type="submit">Add Goal</button>
                 </form>
-            </li>
-        {% endfor %}
-    </ul>
-    <h2>Total Amount Per Pay Day: ${{ '%.2f'|format(total_amount_per_pay_day) }}</h2>
+            </div>
+
+            <div class="panel glass">
+                <h2>Totals</h2>
+                <div class="stat">
+                    <span>Total Amount Per Pay Day</span>
+                    <strong>${{ '%.2f'|format(total_amount_per_pay_day) }}</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel glass">
+            <h2>Current Goals</h2>
+            <ul class="goal-list">
+                {% for goal, remaining_pay_days in goals %}
+                    <li class="goal-card glass">
+                        <div>
+                            <div class="goal-date">{{ goal.date }}</div>
+                            <div class="goal-meta">
+                                <span>Goal: ${{ '%.2f'|format(goal.amount) }}</span>
+                                <span>Remaining Pay Days: {{ remaining_pay_days }}</span>
+                                <span>Per Pay Day: ${{ '%.2f'|format(goal.amount_per_pay_day()) }}</span>
+                            </div>
+                        </div>
+                        <form action="/delete_goal/{{ goal.id }}" method="post">
+                            <button type="submit" class="ghost">Delete</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        </section>
+    </div>
 </body>
 </html>
